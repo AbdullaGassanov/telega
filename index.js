@@ -74,7 +74,6 @@ app.get("/", (req, res) => res.send("Bot is running"));
 app.listen(process.env.PORT || 3000);
  */
 
-
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const express = require("express");
@@ -145,12 +144,8 @@ bot.on("text", async (ctx) => {
         return ctx.reply("Вопрос 4:\n\nНомер телефона\n✏️ Пример: +7 777 123 45 67");
     }
 
-    // ---------- Вопрос 4: Телефон ----------
+    // ---------- Вопрос 4: Телефон (без проверки) ----------
     if (state.step === 4) {
-        const phoneRegex = /^\+7 \d{3} \d{3} \d{2} \d{2}$/;
-        if (!phoneRegex.test(text)) {
-            return ctx.reply("Неверный формат. Используйте: +7 777 123 45 67");
-        }
         state.phone = text;
         state.step = 5;
 
@@ -237,3 +232,4 @@ app.get("/", (req, res) => res.send("Bot is running"));
 app.listen(process.env.PORT || 3000, () => {
     console.log("Server running on port " + (process.env.PORT || 3000));
 });
+
