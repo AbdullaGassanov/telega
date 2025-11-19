@@ -2,35 +2,20 @@ require("dotenv").config();
 const { Telegraf } = require("telegraf");
 const express = require("express");
 
-// Создаём бота
 const bot = new Telegraf(process.env.BOT_TOKEN);
-
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
-// Хранилище состояний пользователей — простой объект в памяти
+
 let userStates = {};
 
-
-// ===============================
-//  СТАРТ КОМАНДА (/start)
-// ===============================
-
 bot.start((ctx) => {
-    // Создаём состояние для пользователя
     userStates[ctx.chat.id] = { step: 1 };
-
     ctx.reply("Введите ваше имя:");
 });
 
-
-// ===============================
-//  ОБРАБОТКА ВСЕХ ТЕКСТОВЫХ СООБЩЕНИЙ
-// ===============================
-
 bot.on("text", async (ctx) => {
-    const chatId = ctx.chat.id;          // ID пользователя
-    const text = ctx.message.text;       // Его сообщение
+    const chatId = ctx.chat.id;
+    const text = ctx.message.text;
 
-    // Если пользователь пишет без /start — начинаем сценарий заново
     if (!userStates[chatId]) {
         userStates[chatId] = { step: 1 };
         return ctx.reply("Введите ваше имя:");
@@ -38,71 +23,52 @@ bot.on("text", async (ctx) => {
 
     const state = userStates[chatId];
 
-    // ----------------------------------
-    // STEP 1 — Получаем имя пользователя
-    // ----------------------------------
+    // STEP 1 — имя
     if (state.step === 1) {
-        state.name = text;      // Сохраняем имя
-        state.step = 2;         // Переходим к следующему шагу
+        state.name = text;
+        state.step = 2;
 
-        // Кнопки выбора размера
-        return ctx.reply(
-            "Выберите размер:",
-            Markup.keyboard([["Small", "Medium", "Large"]]) // Три кнопки в строке
-                .oneTime()   // После выбора исчезают
-                .resize()    // Размер клавиатуры подстраивается под экран
-        );
+        return ctx.reply("Выберите размер:", {
+            reply_markup: {
+                keyboard: [
+                    ["Small", "Medium", "Large"]
+                ],
+                resize_keyboard: true,
+                one_time_keyboard: true
+            }
+        });
     }
 
-
-    // ----------------------------------
-    // STEP 2 — Получаем выбранный размер
-    // ----------------------------------
+    // STEP 2 — размер
     if (state.step === 2) {
-
-        // Проверяем, что пользователь нажал именно кнопку
         if (!["Small", "Medium", "Large"].includes(text)) {
-            return ctx.reply("Пожалуйста выберите размер, используя кнопки.");
+            return ctx.reply("Пожалуйста выберите размер с кнопок.");
         }
 
-        state.size = text;      // Сохраняем выбранный размер
+        state.size = text;
 
-        // Формируем текст для отправки админу
-        const msg =
+        const message =
             `📩 Новая заявка:
 👤 Имя: ${state.name}
 📏 Размер: ${state.size}`;
 
-        // Отправляем сообщение в твой личный Telegram (ADMIN_CHAT_ID)
-        await bot.telegram.sendMessage(ADMIN_CHAT_ID, msg);
+        await bot.telegram.sendMessage(ADMIN_CHAT_ID, message);
 
-        // Отвечаем пользователю и убираем клавиатуру
         await ctx.reply("Спасибо! Ваши данные отправлены.", {
-            reply_markup: { remove_keyboard: true },
+            reply_markup: {
+                remove_keyboard: true
+            }
         });
 
-        // Удаляем состояние — заявка завершена
         delete userStates[chatId];
     }
 });
 
-
-// ===============================
-//  ЗАПУСК БОТА
-// ===============================
-
+// Запуск бота
 bot.launch();
 console.log("Bot started");
 
-
-// ===============================
-//  EXPRESS — обязательно для Render
-// ===============================
-
+// Express для Render
 const app = express();
-
 app.get("/", (req, res) => res.send("Bot is running"));
-
-app.listen(process.env.PORT || 3000, () => {
-    console.log("Server is running");
-});
+app.listen(process.env.PORT || 3000);
