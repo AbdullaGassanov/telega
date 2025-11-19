@@ -74,144 +74,142 @@ app.get("/", (req, res) => res.send("Bot is running"));
 app.listen(process.env.PORT || 3000);
  */
 
-
 require("dotenv").config();
-const { Telegraf } = require("telegraf");
+const { Telegraf, Markup } = require("telegraf");
 const express = require("express");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
-// Хранилище состояния по пользователям
 let userStates = {};
 
-
 // =========================
-//  /start
+// Стартовое меню /start
 // =========================
 bot.start((ctx) => {
-    userStates[ctx.chat.id] = { step: 1 };
+    ctx.reply(
+        "Добро пожаловать! Нажмите кнопку, чтобы начать оформление заказа.",
+        Markup.inlineKeyboard([
+            Markup.button.callback("Начать оформление заказа", "START_ORDER")
+        ])
+    );
+});
 
+// =========================
+// Обработка кнопок Inline
+// =========================
+bot.action("START_ORDER", (ctx) => {
+    userStates[ctx.chat.id] = { step: 1 };
+    ctx.deleteMessage(); // убираем кнопку
     ctx.reply("Вопрос 1:\n\nИмя и фамилия\n(Короткий ответ)");
 });
 
-
 // =========================
-// ТЕКСТОВЫЕ СООБЩЕНИЯ
+// Обработка текстовых сообщений
 // =========================
 bot.on("text", async (ctx) => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text;
 
     if (!userStates[chatId]) {
-        userStates[chatId] = { step: 1 };
-        return ctx.reply("Вопрос 1:\n\nИмя и фамилия\n(Короткий ответ)");
+        return ctx.reply(
+            "Нажмите кнопку 'Начать оформление заказа', чтобы начать.",
+            Markup.inlineKeyboard([
+                Markup.button.callback("Начать оформление заказа", "START_ORDER")
+            ])
+        );
     }
 
     const state = userStates[chatId];
 
-    // =========================
-    // ВОПРОС 1 — Имя и фамилия
-    // =========================
+    // ---------- Вопрос 1: Имя и фамилия ----------
     if (state.step === 1) {
         state.name = text;
         state.step = 2;
-
-        return ctx.reply(
-            "Вопрос 2:\n\nСтрана\n(Короткий ответ)"
-        );
+        return ctx.reply("Вопрос 2:\n\nСтрана\n(Короткий ответ)");
     }
 
-    // =========================
-    // ВОПРОС 2 — Страна
-    // =========================
+    // ---------- Вопрос 2: Страна ----------
     if (state.step === 2) {
         state.country = text;
         state.step = 3;
-
-        return ctx.reply(
-            "Вопрос 3:\n\nГород\n(Короткий ответ)"
-        );
+        return ctx.reply("Вопрос 3:\n\nГород\n(Короткий ответ)");
     }
 
-    // =========================
-    // ВОПРОС 3 — Город
-    // =========================
+    // ---------- Вопрос 3: Город ----------
     if (state.step === 3) {
         state.city = text;
         state.step = 4;
-
-        return ctx.reply(
-            "Вопрос 4:\n\nНомер телефона\n✏️ Пример: +7 777 123 45 67"
-        );
+        return ctx.reply("Вопрос 4:\n\nНомер телефона\n✏️ Пример: +7 777 123 45 67");
     }
 
-    // =========================
-    // ВОПРОС 4 — Телефон
-    // =========================
+    // ---------- Вопрос 4: Телефон с проверкой ----------
     if (state.step === 4) {
+        // Проверка формата +7 XXX XXX XX XX
+        const phoneRegex = /^\+7 \d{3} \d{3} \d{2} \d{2}$/;
+        if (!phoneRegex.test(text)) {
+            return ctx.reply("Неверный формат. Используйте: +7 777 123 45 67");
+        }
         state.phone = text;
         state.step = 5;
 
-        // Вопрос с кнопками
+        // Вопрос 5: Размер (Inline кнопки)
         return ctx.reply(
-            "Вопрос 5:\n\nВыбери размер:",
-            {
-                reply_markup: {
-                    keyboard: [
-                        ["M", "L", "XL"],
-                        ["2XL", "3XL"]
-                    ],
-                    resize_keyboard: true,
-                    one_time_keyboard: true
-                }
-            }
+            "Вопрос 5:\n\nВыберите размер:",
+            Markup.inlineKeyboard([
+                [Markup.button.callback("M", "SIZE_M"), Markup.button.callback("L", "SIZE_L")],
+                [Markup.button.callback("XL", "SIZE_XL"), Markup.button.callback("2XL", "SIZE_2XL")],
+                [Markup.button.callback("3XL", "SIZE_3XL")]
+            ])
         );
     }
+});
 
-    // =========================
-    // ВОПРОС 5 — Размер (кнопки)
-    // =========================
-    if (state.step === 5) {
-        const validSizes = ["M", "L", "XL", "2XL", "3XL"];
+// =========================
+// Inline кнопки для размера
+// =========================
+bot.action(/SIZE_(.+)/, (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!userStates[chatId]) return ctx.answerCbQuery();
 
-        if (!validSizes.includes(text)) {
-            return ctx.reply("Пожалуйста выберите размер с кнопок.");
-        }
+    const size = ctx.match[1]; // M, L, XL, 2XL, 3XL
+    userStates[chatId].size = size;
+    userStates[chatId].step = 6;
 
-        state.size = text;
-        state.step = 6;
+    ctx.editMessageText(`Выбран размер: ${size}`);
 
-        return ctx.reply(
-            "Вопрос 6:\n\nВыбери цвет:",
-            {
-                reply_markup: {
-                    keyboard: [
-                        ["Белый", "Чёрный"],
-                        ["Тёмно-зелёный"]
-                    ],
-                    resize_keyboard: true,
-                    one_time_keyboard: true
-                }
-            }
-        );
-    }
+    // Вопрос 6: Цвет
+    return ctx.reply(
+        "Вопрос 6:\n\nВыберите цвет:",
+        Markup.inlineKeyboard([
+            [Markup.button.callback("Белый", "COLOR_WHITE"), Markup.button.callback("Чёрный", "COLOR_BLACK")],
+            [Markup.button.callback("Тёмно-зелёный", "COLOR_DARKGREEN")]
+        ])
+    );
+});
 
-    // =========================
-    // ВОПРОС 6 — Цвет (кнопки)
-    // =========================
-    if (state.step === 6) {
-        const validColors = ["Белый", "Чёрный", "Тёмно-зелёный"];
+// =========================
+// Inline кнопки для цвета
+// =========================
+bot.action(/COLOR_(.+)/, async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!userStates[chatId]) return ctx.answerCbQuery();
 
-        if (!validColors.includes(text)) {
-            return ctx.reply("Пожалуйста выберите цвет с кнопок.");
-        }
+    const colorMap = {
+        WHITE: "Белый",
+        BLACK: "Чёрный",
+        DARKGREEN: "Тёмно-зелёный"
+    };
 
-        state.color = text;
+    const color = colorMap[ctx.match[1]];
+    userStates[chatId].color = color;
 
-        // Формируем итоговое сообщение администратору
-        const finalMsg =
-            `📩 Новая заявка:
+    ctx.editMessageText(`Выбран цвет: ${color}`);
+
+    // Формируем сообщение админу
+    const state = userStates[chatId];
+    const finalMsg =
+        `📩 Новая заявка:
 
 👤 Имя: ${state.name}
 🌍 Страна: ${state.country}
@@ -221,31 +219,22 @@ bot.on("text", async (ctx) => {
 📏 Размер: ${state.size}
 🎨 Цвет: ${state.color}`;
 
-        // Отправляем админу
-        await bot.telegram.sendMessage(ADMIN_CHAT_ID, finalMsg);
+    await bot.telegram.sendMessage(ADMIN_CHAT_ID, finalMsg);
 
-        // Отвечаем пользователю
-        await ctx.reply("Спасибо! Ваши данные отправлены.", {
-            reply_markup: { remove_keyboard: true }
-        });
+    await ctx.reply("Спасибо! Ваши данные отправлены.");
 
-        delete userStates[chatId];
-    }
+    delete userStates[chatId];
 });
 
-
 // =========================
-//  Запуск бота
+// Запуск бота
 // =========================
 bot.launch();
 console.log("Bot started");
 
-
 // =========================
-// Express — нужно для Render
+// Express для Render
 // =========================
 const app = express();
 app.get("/", (req, res) => res.send("Bot is running"));
-app.listen(process.env.PORT || 3000, () => {
-    console.log("Server is running");
-});
+app.listen(process.env.PORT || 3000);
