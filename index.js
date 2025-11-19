@@ -1,44 +1,108 @@
 require("dotenv").config();
 const { Telegraf } = require("telegraf");
-const nodemailer = require("nodemailer");
+const express = require("express");
 
+// Создаём бота
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Настройка email
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASS,
-    },
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
+// Хранилище состояний пользователей — простой объект в памяти
+let userStates = {};
+
+
+// ===============================
+//  СТАРТ КОМАНДА (/start)
+// ===============================
+
+bot.start((ctx) => {
+    // Создаём состояние для пользователя
+    userStates[ctx.chat.id] = { step: 1 };
+
+    ctx.reply("Введите ваше имя:");
 });
 
-bot.start((ctx) => ctx.reply("Привет! Напиши свой вопрос."));
+
+// ===============================
+//  ОБРАБОТКА ВСЕХ ТЕКСТОВЫХ СООБЩЕНИЙ
+// ===============================
+
 bot.on("text", async (ctx) => {
-    const message = ctx.message.text;
+    const chatId = ctx.chat.id;          // ID пользователя
+    const text = ctx.message.text;       // Его сообщение
 
-    // Отправка на email
-    await transporter.sendMail({
-        from: process.env.MAIL_USER,
-        to: process.env.MAIL_TO,
-        subject: "Новое сообщение из Telegram бота",
-        text: message,
-    });
+    // Если пользователь пишет без /start — начинаем сценарий заново
+    if (!userStates[chatId]) {
+        userStates[chatId] = { step: 1 };
+        return ctx.reply("Введите ваше имя:");
+    }
 
-    ctx.reply("Спасибо! Мы получили ваше сообщение.");
+    const state = userStates[chatId];
+
+    // ----------------------------------
+    // STEP 1 — Получаем имя пользователя
+    // ----------------------------------
+    if (state.step === 1) {
+        state.name = text;      // Сохраняем имя
+        state.step = 2;         // Переходим к следующему шагу
+
+        // Кнопки выбора размера
+        return ctx.reply(
+            "Выберите размер:",
+            Markup.keyboard([["Small", "Medium", "Large"]]) // Три кнопки в строке
+                .oneTime()   // После выбора исчезают
+                .resize()    // Размер клавиатуры подстраивается под экран
+        );
+    }
+
+
+    // ----------------------------------
+    // STEP 2 — Получаем выбранный размер
+    // ----------------------------------
+    if (state.step === 2) {
+
+        // Проверяем, что пользователь нажал именно кнопку
+        if (!["Small", "Medium", "Large"].includes(text)) {
+            return ctx.reply("Пожалуйста выберите размер, используя кнопки.");
+        }
+
+        state.size = text;      // Сохраняем выбранный размер
+
+        // Формируем текст для отправки админу
+        const msg =
+            `📩 Новая заявка:
+👤 Имя: ${state.name}
+📏 Размер: ${state.size}`;
+
+        // Отправляем сообщение в твой личный Telegram (ADMIN_CHAT_ID)
+        await bot.telegram.sendMessage(ADMIN_CHAT_ID, msg);
+
+        // Отвечаем пользователю и убираем клавиатуру
+        await ctx.reply("Спасибо! Ваши данные отправлены.", {
+            reply_markup: { remove_keyboard: true },
+        });
+
+        // Удаляем состояние — заявка завершена
+        delete userStates[chatId];
+    }
 });
+
+
+// ===============================
+//  ЗАПУСК БОТА
+// ===============================
 
 bot.launch();
 console.log("Bot started");
 
-const express = require("express");
+
+// ===============================
+//  EXPRESS — обязательно для Render
+// ===============================
+
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-app.get("/", (req, res) => {
-  res.send("Bot is running");
-});
+app.get("/", (req, res) => res.send("Bot is running"));
 
-app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
+app.listen(process.env.PORT || 3000, () => {
+    console.log("Server is running");
 });
