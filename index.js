@@ -73,6 +73,8 @@ const app = express();
 app.get("/", (req, res) => res.send("Bot is running"));
 app.listen(process.env.PORT || 3000);
  */
+
+
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const express = require("express");
@@ -80,7 +82,7 @@ const express = require("express");
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
-// В памяти храним состояние пользователей
+// Хранилище состояния пользователей
 let userStates = {};
 
 // =========================
@@ -223,18 +225,15 @@ bot.action(/COLOR_(.+)/, async (ctx) => {
 });
 
 // =========================
-// EXPRESS + Webhook для Render
+// Express + Webhook для Render
 // =========================
 const app = express();
 
-// Путь для Telegram webhook
+// Используем webhook callback на путь /webhook
 app.use(bot.webhookCallback("/webhook"));
 
 app.get("/", (req, res) => res.send("Bot is running"));
 
-// Устанавливаем webhook (при деплое на Render)
-bot.telegram.setWebhook(`${process.env.APP_URL}/webhook`);
-
 app.listen(process.env.PORT || 3000, () => {
-    console.log("Server running");
+    console.log("Server running on port " + (process.env.PORT || 3000));
 });
