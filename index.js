@@ -73,7 +73,6 @@ const app = express();
 app.get("/", (req, res) => res.send("Bot is running"));
 app.listen(process.env.PORT || 3000);
  */
-
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const express = require("express");
@@ -81,7 +80,6 @@ const express = require("express");
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
-// Хранилище состояния пользователей
 let userStates = {};
 
 // =========================
@@ -144,7 +142,7 @@ bot.on("text", async (ctx) => {
         return ctx.reply("Вопрос 4:\n\nНомер телефона\n✏️ Пример: +7 777 123 45 67");
     }
 
-    // ---------- Вопрос 4: Телефон (без проверки) ----------
+    // ---------- Вопрос 4 ----------
     if (state.step === 4) {
         state.phone = text;
         state.step = 5;
@@ -220,16 +218,13 @@ bot.action(/COLOR_(.+)/, async (ctx) => {
 });
 
 // =========================
-// Express + Webhook для Render
+// Запуск бота через polling
 // =========================
+bot.launch().then(() => console.log("Bot started (polling)"));
+
 const app = express();
-
-// Используем webhook callback на путь /webhook
-app.use(bot.webhookCallback("/webhook"));
-
 app.get("/", (req, res) => res.send("Bot is running"));
 
 app.listen(process.env.PORT || 3000, () => {
     console.log("Server running on port " + (process.env.PORT || 3000));
 });
-
