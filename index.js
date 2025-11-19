@@ -73,7 +73,6 @@ const app = express();
 app.get("/", (req, res) => res.send("Bot is running"));
 app.listen(process.env.PORT || 3000);
  */
-
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const express = require("express");
@@ -81,6 +80,7 @@ const express = require("express");
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
+// В памяти храним состояние пользователей
 let userStates = {};
 
 // =========================
@@ -96,16 +96,16 @@ bot.start((ctx) => {
 });
 
 // =========================
-// Обработка кнопок Inline
+// Inline кнопка: Начало заказа
 // =========================
 bot.action("START_ORDER", (ctx) => {
     userStates[ctx.chat.id] = { step: 1 };
-    ctx.deleteMessage(); // убираем кнопку
+    ctx.deleteMessage();
     ctx.reply("Вопрос 1:\n\nИмя и фамилия\n(Короткий ответ)");
 });
 
 // =========================
-// Обработка текстовых сообщений
+// Обработка текстовых ответов
 // =========================
 bot.on("text", async (ctx) => {
     const chatId = ctx.chat.id;
@@ -122,30 +122,29 @@ bot.on("text", async (ctx) => {
 
     const state = userStates[chatId];
 
-    // ---------- Вопрос 1: Имя и фамилия ----------
+    // ---------- Вопрос 1 ----------
     if (state.step === 1) {
         state.name = text;
         state.step = 2;
         return ctx.reply("Вопрос 2:\n\nСтрана\n(Короткий ответ)");
     }
 
-    // ---------- Вопрос 2: Страна ----------
+    // ---------- Вопрос 2 ----------
     if (state.step === 2) {
         state.country = text;
         state.step = 3;
         return ctx.reply("Вопрос 3:\n\nГород\n(Короткий ответ)");
     }
 
-    // ---------- Вопрос 3: Город ----------
+    // ---------- Вопрос 3 ----------
     if (state.step === 3) {
         state.city = text;
         state.step = 4;
         return ctx.reply("Вопрос 4:\n\nНомер телефона\n✏️ Пример: +7 777 123 45 67");
     }
 
-    // ---------- Вопрос 4: Телефон с проверкой ----------
+    // ---------- Вопрос 4: Телефон ----------
     if (state.step === 4) {
-        // Проверка формата +7 XXX XXX XX XX
         const phoneRegex = /^\+7 \d{3} \d{3} \d{2} \d{2}$/;
         if (!phoneRegex.test(text)) {
             return ctx.reply("Неверный формат. Используйте: +7 777 123 45 67");
@@ -153,7 +152,6 @@ bot.on("text", async (ctx) => {
         state.phone = text;
         state.step = 5;
 
-        // Вопрос 5: Размер (Inline кнопки)
         return ctx.reply(
             "Вопрос 5:\n\nВыберите размер:",
             Markup.inlineKeyboard([
@@ -172,13 +170,12 @@ bot.action(/SIZE_(.+)/, (ctx) => {
     const chatId = ctx.chat.id;
     if (!userStates[chatId]) return ctx.answerCbQuery();
 
-    const size = ctx.match[1]; // M, L, XL, 2XL, 3XL
+    const size = ctx.match[1];
     userStates[chatId].size = size;
     userStates[chatId].step = 6;
 
     ctx.editMessageText(`Выбран размер: ${size}`);
 
-    // Вопрос 6: Цвет
     return ctx.reply(
         "Вопрос 6:\n\nВыберите цвет:",
         Markup.inlineKeyboard([
@@ -206,7 +203,7 @@ bot.action(/COLOR_(.+)/, async (ctx) => {
 
     ctx.editMessageText(`Выбран цвет: ${color}`);
 
-    // Формируем сообщение админу
+    // Отправляем данные админу
     const state = userStates[chatId];
     const finalMsg =
         `📩 Новая заявка:
@@ -220,21 +217,24 @@ bot.action(/COLOR_(.+)/, async (ctx) => {
 🎨 Цвет: ${state.color}`;
 
     await bot.telegram.sendMessage(ADMIN_CHAT_ID, finalMsg);
-
     await ctx.reply("Спасибо! Ваши данные отправлены.");
 
     delete userStates[chatId];
 });
 
 // =========================
-// Запуск бота
-// =========================
-bot.launch();
-console.log("Bot started");
-
-// =========================
-// Express для Render
+// EXPRESS + Webhook для Render
 // =========================
 const app = express();
+
+// Путь для Telegram webhook
+app.use(bot.webhookCallback("/webhook"));
+
 app.get("/", (req, res) => res.send("Bot is running"));
-app.listen(process.env.PORT || 3000);
+
+// Устанавливаем webhook (при деплое на Render)
+bot.telegram.setWebhook(`${process.env.APP_URL}/webhook`);
+
+app.listen(process.env.PORT || 3000, () => {
+    console.log("Server running");
+});
