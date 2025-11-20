@@ -82,9 +82,6 @@ const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
 let userStates = {};
 
-// =========================
-// Стартовое меню /start
-// =========================
 bot.start((ctx) => {
     ctx.reply(
         "Добро пожаловать! Нажмите кнопку, чтобы начать оформление заказа.",
@@ -94,18 +91,12 @@ bot.start((ctx) => {
     );
 });
 
-// =========================
-// Inline кнопка: Начало заказа
-// =========================
 bot.action("START_ORDER", (ctx) => {
     userStates[ctx.chat.id] = { step: 1 };
     ctx.deleteMessage();
     ctx.reply("Вопрос 1:\n\nИмя и фамилия\n(Короткий ответ)");
 });
 
-// =========================
-// Обработка текстовых ответов
-// =========================
 bot.on("text", async (ctx) => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text;
@@ -121,28 +112,24 @@ bot.on("text", async (ctx) => {
 
     const state = userStates[chatId];
 
-    // ---------- Вопрос 1 ----------
     if (state.step === 1) {
         state.name = text;
         state.step = 2;
-        return ctx.reply("Вопрос 2:\n\nСтрана\n(Короткий ответ)");
+        return ctx.reply("Вопрос 2:\n\nСтрана");
     }
 
-    // ---------- Вопрос 2 ----------
     if (state.step === 2) {
         state.country = text;
         state.step = 3;
-        return ctx.reply("Вопрос 3:\n\nГород\n(Короткий ответ)");
+        return ctx.reply("Вопрос 3:\n\nГород");
     }
 
-    // ---------- Вопрос 3 ----------
     if (state.step === 3) {
         state.city = text;
         state.step = 4;
-        return ctx.reply("Вопрос 4:\n\nНомер телефона\n✏️ Пример: +7 777 123 45 67");
+        return ctx.reply("Вопрос 4:\n\nНомер телефона");
     }
 
-    // ---------- Вопрос 4 ----------
     if (state.step === 4) {
         state.phone = text;
         state.step = 5;
@@ -158,9 +145,6 @@ bot.on("text", async (ctx) => {
     }
 });
 
-// =========================
-// Inline кнопки для размера
-// =========================
 bot.action(/SIZE_(.+)/, (ctx) => {
     const chatId = ctx.chat.id;
     if (!userStates[chatId]) return ctx.answerCbQuery();
@@ -180,9 +164,6 @@ bot.action(/SIZE_(.+)/, (ctx) => {
     );
 });
 
-// =========================
-// Inline кнопки для цвета
-// =========================
 bot.action(/COLOR_(.+)/, async (ctx) => {
     const chatId = ctx.chat.id;
     if (!userStates[chatId]) return ctx.answerCbQuery();
@@ -198,7 +179,6 @@ bot.action(/COLOR_(.+)/, async (ctx) => {
 
     ctx.editMessageText(`Выбран цвет: ${color}`);
 
-    // Отправляем данные админу
     const state = userStates[chatId];
     const finalMsg =
         `📩 Новая заявка:
@@ -217,14 +197,25 @@ bot.action(/COLOR_(.+)/, async (ctx) => {
     delete userStates[chatId];
 });
 
-// =========================
-// Запуск бота через polling
-// =========================
-bot.launch().then(() => console.log("Bot started (polling)"));
-
+// ===============================
+// WEBHOOK ДЛЯ RENDER
+// ===============================
 const app = express();
-app.get("/", (req, res) => res.send("Bot is running"));
+app.use(express.json());
+
+// Webhook endpoint
+app.use(bot.webhookCallback("/webhook"));
+
+// Устанавливаем webhook при старте
+app.get("/", async (req, res) => {
+    try {
+        await bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
+        res.send("Webhook установлен. Бот работает.");
+    } catch (e) {
+        res.send("Ошибка установки webhook: " + e.message);
+    }
+});
 
 app.listen(process.env.PORT || 3000, () => {
-    console.log("Server running on port " + (process.env.PORT || 3000));
+    console.log("Server running");
 });
