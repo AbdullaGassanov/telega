@@ -1,4 +1,4 @@
-/* require("dotenv").config();
+require("dotenv").config();
 const { Telegraf } = require("telegraf");
 const express = require("express");
 
@@ -72,7 +72,7 @@ console.log("Bot started");
 const app = express();
 app.get("/", (req, res) => res.send("Bot is running"));
 app.listen(process.env.PORT || 3000);
- */
+/* 
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const express = require("express");
@@ -219,3 +219,4 @@ app.get("/", async (req, res) => {
 app.listen(process.env.PORT || 3000, () => {
     console.log("Server running");
 });
+ */
