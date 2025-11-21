@@ -28,6 +28,26 @@ bot.on("text", async (ctx) => {
         state.name = text;
         state.step = 2;
 
+        return ctx.reply("Страна");
+
+    }
+
+
+    // Step 2 - Country
+    if (state.step === 2) {
+        state.country = text;
+        state.step = 3;
+
+
+        return ctx.reply("Город");
+    }
+
+    // Step 3 - City
+    if (state.step === 3) {
+        state.city = text;
+        state.step = 4;
+
+
         return ctx.reply("Выберите размер:", {
             reply_markup: {
                 keyboard: [
@@ -39,8 +59,8 @@ bot.on("text", async (ctx) => {
         });
     }
 
-    // STEP 2 — размер
-    if (state.step === 2) {
+    // STEP 4 — размер
+    if (state.step === 4) {
         if (!["Small", "Medium", "Large"].includes(text)) {
             return ctx.reply("Пожалуйста выберите размер с кнопок.");
         }
@@ -50,7 +70,10 @@ bot.on("text", async (ctx) => {
         const message =
             `📩 Новая заявка:
 👤 Имя: ${state.name}
-📏 Размер: ${state.size}`;
+📏 Страна: ${state.country}
+📏 Город: ${state.city}
+📏 Размер: ${state.size}
+`;
 
         await bot.telegram.sendMessage(ADMIN_CHAT_ID, message);
 
