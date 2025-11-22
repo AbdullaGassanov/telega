@@ -103,7 +103,7 @@ bot.on("text", (ctx) => {
 
 
 
-// ============ ФУНКЦИЯ ПОКАЗА ВОПРОСОВ ============
+// ============ ФУНКЦИЯ ПОКАЗА ВОПРОСОВ =============
 async function askNext(ctx, step, isBack = false) {
     const backBtn = [{ text: "⬅️ Назад", callback_data: "back" }];
 
