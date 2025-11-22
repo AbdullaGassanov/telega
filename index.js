@@ -6,43 +6,35 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
 let userStates = {};
+
 bot.on("callback_query", async (ctx) => {
     const chatId = ctx.chat.id;
     const data = ctx.callbackQuery.data;
-
     const state = userStates[chatId];
+
     if (!state) return ctx.answerCbQuery();
 
-    // ===== ОТМЕНА =====
-    if (data === "cancel") {
-        delete userStates[chatId];
-
-        await ctx.editMessageText("❌ Процесс заполнения отменён.");
-
-        return;
-    }
-
-    // ===== НАЗАД =====
+    // === НАЗАД ===
     if (data === "back") {
         if (state.step > 1) state.step -= 1;
         return askNext(ctx, state.step, true);
     }
 
-    // ===== INLINE ВЫБОР (размеры) =====
+    // === Выбор размера ===
     if (state.step === 5) {
         state.size = data;
         state.step = 6;
         return askNext(ctx, 6);
     }
 
-    // ===== INLINE ВЫБОР (цвета) =====
+    // === Выбор цвета ===
     if (state.step === 6) {
         state.color = data;
         state.step = 7;
         return askNext(ctx, 7);
     }
 
-    // ===== ПОДТВЕРДИТЬ =====
+    // === Подтверждение ===
     if (data === "confirm") {
         const msg =
             `📩 Новая заявка:\n` +
@@ -54,14 +46,13 @@ bot.on("callback_query", async (ctx) => {
             `🎨 Цвет: ${state.color}`;
 
         await bot.telegram.sendMessage(ADMIN_CHAT_ID, msg);
-
         await ctx.editMessageText("✅ Заявка отправлена! Спасибо!");
 
         delete userStates[chatId];
         return;
     }
 
-    // ===== РЕДАКТИРОВАТЬ =====
+    // === Изменить данные ===
     if (data === "edit") {
         state.step = 1;
         return askNext(ctx, 1);
@@ -72,10 +63,8 @@ bot.on("callback_query", async (ctx) => {
 
 
 
-// ==============================
-// ТЕКСТОВЫЕ ШАГИ
-// ==============================
-bot.on("text", async (ctx) => {
+// ============ ТЕКСТОВЫЕ ОТВЕТЫ ============
+bot.on("text", (ctx) => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text;
 
@@ -113,45 +102,44 @@ bot.on("text", async (ctx) => {
 
 
 
-// ==============================
-// ФУНКЦИЯ ПОКАЗА СЛЕДУЮЩЕГО ВОПРОСА
-// ==============================
-async function askNext(ctx, step, isBack = false) {
-    const cancelBtn = { text: "❌ Отмена", callback_data: "cancel" };
-    const backBtn = { text: "⬅️ Назад", callback_data: "back" };
 
-    const navRow = [backBtn, cancelBtn];
+// ============ ФУНКЦИЯ ПОКАЗА ВОПРОСОВ ============
+async function askNext(ctx, step, isBack = false) {
+    const backBtn = [{ text: "⬅️ Назад", callback_data: "back" }];
 
     const state = userStates[ctx.chat.id];
 
+    // STEP 1 — имя
     if (step === 1) {
-        const preview = isBack && state.name ? `\n\nТекущее значение:\n➡️ ${state.name}` : "";
-        return ctx.reply("👤 Введите имя и фамилию:" + preview, {
-            reply_markup: { inline_keyboard: [navRow] }
-        });
+        const prev = isBack && state.name ? `\n➡️ Текущее: ${state.name}` : "";
+        return ctx.reply("👤 Введите имя и фамилию:" + prev);
     }
 
+    // STEP 2 — страна
     if (step === 2) {
-        const preview = isBack && state.country ? `\n\nТекущее значение:\n➡️ ${state.country}` : "";
-        return ctx.reply("🌍 Введите страну:" + preview, {
-            reply_markup: { inline_keyboard: [navRow] }
+        const prev = isBack && state.country ? `\n➡️ Текущее: ${state.country}` : "";
+        return ctx.reply("🌍 Введите страну:" + prev, {
+            reply_markup: { inline_keyboard: [backBtn] }
         });
     }
 
+    // STEP 3 — город
     if (step === 3) {
-        const preview = isBack && state.city ? `\n\nТекущее значение:\n➡️ ${state.city}` : "";
-        return ctx.reply("🏙 Введите город:" + preview, {
-            reply_markup: { inline_keyboard: [navRow] }
+        const prev = isBack && state.city ? `\n➡️ Текущее: ${state.city}` : "";
+        return ctx.reply("🏙 Введите город:" + prev, {
+            reply_markup: { inline_keyboard: [backBtn] }
         });
     }
 
+    // STEP 4 — телефон
     if (step === 4) {
-        const preview = isBack && state.phone ? `\n\nТекущее значение:\n➡️ ${state.phone}` : "";
-        return ctx.reply("📞 Введите номер телефона:\n✏️ Пример: +7 777 123 45 67" + preview, {
-            reply_markup: { inline_keyboard: [navRow] }
+        const prev = isBack && state.phone ? `\n➡️ Текущее: ${state.phone}` : "";
+        return ctx.reply("📞 Введите номер телефона:\n✏️ Формат: +7 777 123 45 67" + prev, {
+            reply_markup: { inline_keyboard: [backBtn] }
         });
     }
 
+    // STEP 5 — размеры (inline)
     if (step === 5) {
         return ctx.reply("📏 Выберите размер:", {
             reply_markup: {
@@ -165,12 +153,13 @@ async function askNext(ctx, step, isBack = false) {
                         { text: "2XL", callback_data: "2XL" },
                         { text: "3XL", callback_data: "3XL" }
                     ],
-                    navRow
+                    backBtn
                 ]
             }
         });
     }
 
+    // STEP 6 — цвет (inline)
     if (step === 6) {
         return ctx.reply("🎨 Выберите цвет:", {
             reply_markup: {
@@ -178,12 +167,13 @@ async function askNext(ctx, step, isBack = false) {
                     [{ text: "Белый", callback_data: "Белый" }],
                     [{ text: "Чёрный", callback_data: "Чёрный" }],
                     [{ text: "Тёмно-зелёный", callback_data: "Тёмно-зелёный" }],
-                    navRow
+                    backBtn
                 ]
             }
         });
     }
 
+    // STEP 7 — подтверждение
     if (step === 7) {
         return ctx.reply(
             `🔍 Проверьте ваши данные:\n\n` +
@@ -198,7 +188,7 @@ async function askNext(ctx, step, isBack = false) {
                     inline_keyboard: [
                         [{ text: "✅ Подтвердить", callback_data: "confirm" }],
                         [{ text: "✏️ Изменить", callback_data: "edit" }],
-                        navRow
+                        backBtn
                     ]
                 }
             }
